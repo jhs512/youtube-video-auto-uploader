@@ -34,7 +34,7 @@ class YouTubeUploader:
         self._playlists_cache = {}  # 플레이리스트 캐시
     
     def _authenticate(self) -> Any:
-        """YouTube API 인��� 수행하고 클라이언트를 반환합니다."""
+        """YouTube API 인증을 수행하고 클라이언트를 반환합니다."""
         os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
         flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(
             self.client_secrets_file, SCOPES)
@@ -191,7 +191,7 @@ class YouTubeUploader:
                 if status:
                     print(f"Upload {int(status.progress()*100)}%")
             except Exception as e:
-                print(f"청크 업로드 중 오류 발���: {str(e)}")
+                print(f"청크 업로드 중 오류 발생: {str(e)}")
                 raise
         return response['id']
 
@@ -248,7 +248,7 @@ class VideoProcessor:
         return base_config
     
     def _move_to_after_upload(self, file_path: Path, config: Dict[str, Any]) -> None:
-        """업드 완료된 파일을 after_upload 디렉토리로 이동합니다."""
+        """업로드 완료된 파일을 after_upload 디렉토리로 이동합니다."""
         if 'after_upload_dir' in config:
             after_upload_dir = Path(config['after_upload_dir'])
             self._ensure_directory(after_upload_dir)
@@ -353,18 +353,25 @@ def main() -> None:
     config = load_config()
     processor = VideoProcessor(config)
     
-    while True:
-        try:
-            for video in processor.get_pending_videos():
-                processor.process_video(video)
-            time.sleep(config['scan_interval'])
-            
-        except KeyboardInterrupt:
-            print("프로그램을 종료합니다.")
-            break
-        except Exception as e:
-            print(f"에러 발생: {str(e)}")
-            time.sleep(config['scan_interval'])
+    try:
+        while True:
+            try:
+                for video in processor.get_pending_videos():
+                    processor.process_video(video)
+                time.sleep(config['scan_interval'])
+                
+            except KeyboardInterrupt:
+                print("\n프로그램을 종료합니다. 최대 1분간 대기합니다...")
+                # 1분 동안만 대기하고 종료
+                time.sleep(60)
+                print("프로그램을 강제 종료합니다.")
+                break
+            except Exception as e:
+                print(f"에러 발생: {str(e)}")
+                time.sleep(config['scan_interval'])
+    finally:
+        # 프로그램이 어떻게 종료되든 최종 정리 작업
+        print("프로그램이 종료되었습니다.")
 
 if __name__ == "__main__":
     main()
