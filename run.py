@@ -34,7 +34,7 @@ class YouTubeUploader:
         self._playlists_cache = {}  # 플레이리스트 캐시
     
     def _authenticate(self) -> Any:
-        """YouTube API 수행하고 클라이언트를 반환합니다."""
+        """YouTube API 수���고 클라이언트를 반환합니다."""
         os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
         flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(
             self.client_secrets_file, SCOPES)
@@ -156,7 +156,7 @@ class YouTubeUploader:
                     playlist_id = self._get_or_create_playlist(config['code'], config)
                     if playlist_id:
                         self._add_to_playlist(playlist_id, video_id)
-                        print(f"비디오가 플레이리스트에 추가되었습니다 (코드: {config['code']})")
+                        print(f"비디���가 플레이리스트에 추가되었습니다 (코드: {config['code']})")
                 except Exception as playlist_error:
                     print(f"플레이리스트 처리 중 오류 발생: {str(playlist_error)}")
             
@@ -217,7 +217,7 @@ class VideoProcessor:
                 if pattern and pattern in filename:
                     print(f"그룹 설정 적용: {code} (패턴: {pattern})")
                     
-                    # 그룹 설정의 변수들��� 처리
+                    # 그룹 설정의 변수들 처리
                     processed_config = {}
                     for key, value in group_config.items():
                         if isinstance(value, str):
@@ -361,22 +361,12 @@ def main() -> None:
                 time.sleep(config['scan_interval'])
                 
             except KeyboardInterrupt:
-                print("\n프로그램을 종료합니다. 최대 1분간 대기합니다...")
-                try:
-                    # 1분 동안만 대기
-                    time.sleep(60)
-                except KeyboardInterrupt:
-                    # 두 번째 Ctrl+C가 입력되면 즉시 종료
-                    print("즉시 종료합니다.")
-                    import sys
-                    sys.exit(0)
-                print("프로그램을 종료합니다.")
+                print("\n프로그램을 종료합니다...")
                 break
             except Exception as e:
                 print(f"에러 발생: {str(e)}")
                 time.sleep(config['scan_interval'])
     finally:
-        # 프로그램이 어떻게 종료되든 최종 정리 작업
         print("프로그램이 종료되었습니다.")
 
 if __name__ == "__main__":
