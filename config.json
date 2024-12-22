@@ -1,15 +1,17 @@
 {
-  "upload_folder": "C:/Users/jhs512/Documents/oCam",
-  "scan_interval": 60,
-  "prefix": "준비_",
+  "upload_folder": "./videos",
+  "prefix": "upload_",
   "status_prefix": {
-    "uploading": "업로드중_",
-    "done": "업로드완료_"
+    "uploading": "uploading_",
+    "done": "done_"
   },
-  "output_filename_template": "{original_name}_youtube-{video_id}.mp4",
   "category_id": "22",
   "default_description": "",
   "default_tags": [],
   "privacy_status": "private",
-  "log_template": "##?강\n- [{file_name_without_ext}]({url})"
+  "scan_interval": 60,
+  "output_filename_template": "{original_name}_{video_id}.mp4",
+  "log_template": "{file_name_without_ext}\t{url}",
+  "log_file_path": "./upload.log",
+  "group_settings": {}
 }

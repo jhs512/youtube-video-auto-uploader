@@ -1,3 +1,8 @@
 env
 client.json
 *.mp4
+userConfig.json
+upload.log
+youtube_uploader.log
+process.pid
+*.log
