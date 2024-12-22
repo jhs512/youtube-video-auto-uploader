@@ -34,7 +34,7 @@ class YouTubeUploader:
         self._playlists_cache = {}  # 플레이리스트 캐시
     
     def _authenticate(self) -> Any:
-        """YouTube API 인증을 수행하고 클라이언트를 반환합니다."""
+        """YouTube API 수행하고 클라이언트를 반환합니다."""
         os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
         flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(
             self.client_secrets_file, SCOPES)
@@ -217,7 +217,7 @@ class VideoProcessor:
                 if pattern and pattern in filename:
                     print(f"그룹 설정 적용: {code} (패턴: {pattern})")
                     
-                    # 그룹 설정의 변수들을 처리
+                    # 그룹 설정의 변수들��� 처리
                     processed_config = {}
                     for key, value in group_config.items():
                         if isinstance(value, str):
@@ -362,9 +362,15 @@ def main() -> None:
                 
             except KeyboardInterrupt:
                 print("\n프로그램을 종료합니다. 최대 1분간 대기합니다...")
-                # 1분 동안만 대기하고 종료
-                time.sleep(60)
-                print("프로그램을 강제 종료합니다.")
+                try:
+                    # 1분 동안만 대기
+                    time.sleep(60)
+                except KeyboardInterrupt:
+                    # 두 번째 Ctrl+C가 입력되면 즉시 종료
+                    print("즉시 종료합니다.")
+                    import sys
+                    sys.exit(0)
+                print("프로그램을 종료합니다.")
                 break
             except Exception as e:
                 print(f"에러 발생: {str(e)}")
