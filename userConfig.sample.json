@@ -1,45 +1,46 @@
 {
   "upload_folder": "C:/Users/jhs512/Documents/oCam",
+  "after_upload_dir": "C:/Users/jhs512/Documents/oCam/after_upload",
+  "output_filename_template": "{original_name}__{video_id}.mp4",
   "scan_interval": 10,
   "prefix": "r_",
   "status_prefix": {
     "uploading": "u_",
     "done": "d_"
   },
-  "output_filename_template": "{original_name}__{video_id}.mp4",
+  "privacy_status": "public",
   "category_id": "22",
   "default_description": "",
   "default_tags": [],
-  "privacy_status": "private",
-  "log_template": "##?강\n- [{file_name_without_ext}]({url})",
+  "log_template": "- [{file_name_without_ext}]({url})",
   "log_file_path": "C:/Users/jhs512/js_projects/slog_doc/log/youtube_upload.log",
-  "after_upload_dir": "C:/Users/jhs512/Documents/oCam/after_upload",
   "group_settings": {
-    "p_13454": {
-      "regex": ", p 13453, ",
+    "p_13915": {
+      "regex": ", p 13915, ",
+      "after_upload_dir": "C:/Users/jhs512/Documents/oCam/after_upload_{code}",
       "privacy_status": "public",
       "log_template": "## ?강\n- [{file_name_without_ext}]({url})",
       "log_file_path": "C:/Users/jhs512/js_projects/slog_doc/log/youtube_upload_{code}.log",
-      "after_upload_dir": "C:/Users/jhs512/Documents/oCam/after_upload_{code}",
       "playlist": {
+        "code": "PLE0hRBClSk5I6oSjDBW3HJUAAT-4P6Qo8",
         "enable": true,
-        "title": "p 13453 플레이리스트",
-        "description": "추천합니다."
+        "addFirst": false,
+        "title": "slog.gg/p/13915",
+        "description": ""
       }
     },
     "p_153": {
       "regex": ", p 153, ",
-      "category_id": "22",
-      "default_description": "",
-      "default_tags": [],
+      "after_upload_dir": "C:/Users/jhs512/Documents/oCam/after_upload_{code}",
       "privacy_status": "unlisted",
       "log_template": "## ?강\n- [{file_name_without_ext}]({url})",
       "log_file_path": "C:/Users/jhs512/js_projects/slog_doc/log/youtube_upload_{code}.log",
-      "after_upload_dir": "C:/Users/jhs512/Documents/oCam/after_upload_{code}",
       "playlist": {
+        "code": "PLE0hRBClSk5Jo77OUdxObi_wkpPeK-w1U",
         "enable": true,
-        "title": "테스트 플레이리스트",
-        "description": "좋습니다."
+        "addFirst": true,
+        "title": "slog.gg/p/13900",
+        "description": ""
       }
     }
   }

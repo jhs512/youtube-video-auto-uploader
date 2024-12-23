@@ -1,17 +1,18 @@
 {
   "upload_folder": "./videos",
+  "after_upload_dir": "./videos/after_upload",
+  "output_filename_template": "{original_name}__{video_id}.mp4",
+  "scan_interval": 10,
   "prefix": "upload_",
   "status_prefix": {
     "uploading": "uploading_",
     "done": "done_"
   },
+  "privacy_status": "private",
   "category_id": "22",
   "default_description": "",
   "default_tags": [],
-  "privacy_status": "private",
-  "scan_interval": 60,
-  "output_filename_template": "{original_name}_{video_id}.mp4",
-  "log_template": "{file_name_without_ext}\t{url}",
+  "log_template": "- [{file_name_without_ext}]({url})",
   "log_file_path": "./upload.log",
   "group_settings": {}
 }
