@@ -222,6 +222,44 @@ class YouTubeUploader:
                 raise
         print("비디오 업로드 완료")
         return response['id']
+    
+    def update_playlist_metadata(self, playlist_id: str, title: str, description: str, privacy_status: str = 'public') -> None:
+        """재생목록의 메타데이터를 업데이트"""
+        try:
+            # 현재 재생목록 정보 조회
+            current_playlist = self.youtube.playlists().list(
+                part="snippet,status",
+                id=playlist_id
+            ).execute()
+            
+            if not current_playlist.get('items'):
+                print(f"재생목록을 찾을 수 없음: {playlist_id}")
+                return
+            
+            current_snippet = current_playlist['items'][0]['snippet']
+            current_status = current_playlist['items'][0]['status']
+            
+            # 현재 값과 다른 경우에만 업데이트
+            if (current_snippet.get('title') != title or 
+                current_snippet.get('description') != description or 
+                current_status.get('privacyStatus') != privacy_status):
+                
+                self.youtube.playlists().update(
+                    part="snippet,status",
+                    body={
+                        "id": playlist_id,
+                        "snippet": {
+                            "title": title,
+                            "description": description
+                        },
+                        "status": {
+                            "privacyStatus": privacy_status
+                        }
+                    }
+                ).execute()
+                print(f"재생목록 메타데이터 업데이트됨: {title} (공개 상태: {privacy_status})")
+        except Exception as e:
+            print(f"재생목록 메타데이터 업데이트 중 오류 발생: {str(e)}")
 
 class VideoProcessor:
     """비디오 처리 로직을 담당하는 클래스"""
@@ -248,7 +286,7 @@ class VideoProcessor:
             print(f"성공적으로 처리됨: {video.original_name}")
             
         except Exception as e:
-            print(f"비디오 처리 중 오류 발생: {str(e)}")
+            print(f"비디오 처리 중 오��� 발생: {str(e)}")
             if uploading_path:
                 try:
                     self.file_manager.restore_original(uploading_path, video)
@@ -261,13 +299,25 @@ class VideoProcessor:
         playlist_config = config.get('playlist', {})
         if playlist_config.get('enable') and playlist_config.get('code'):
             try:
-                print(f"플레이리스트에 추가 중 (코드: {playlist_config['code']})")
+                playlist_id = playlist_config['code']
+                print(f"플레이리스트에 추가 중 (코드: {playlist_id})")
+                
+                # 재생목록 메타데이터 업데이트
+                self.uploader.update_playlist_metadata(
+                    playlist_id,
+                    playlist_config.get('title', ''),
+                    playlist_config.get('description', ''),
+                    playlist_config.get('privacy_status', 'public')
+                )
+                
+                # 비디오 추가
                 add_first = playlist_config.get('addFirst', False)
                 self.uploader.add_to_playlist(
-                    playlist_config['code'],
+                    playlist_id,
                     video_id,
                     add_first=add_first
                 )
+                
                 position_str = "맨 앞" if add_first else "맨 뒤"
                 print(f"비디오가 플레이리스트의 {position_str}에 추가되었습니다")
             except Exception as playlist_error:
