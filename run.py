@@ -1,13 +1,19 @@
 import os
 import time
 from dataclasses import dataclass
-from typing import Dict, Any, Optional, Protocol
+from typing import Dict, Any, Optional, Protocol, List
 from pathlib import Path
 import google_auth_oauthlib
 import googleapiclient.discovery
 import googleapiclient.errors
 import googleapiclient.http
 import json
+
+# YouTube API 권한 범위 정의
+SCOPES = [
+    "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/youtube",  # 플레이리스트 관리 권한
+]
 
 # 타입 정의
 class PlaylistConfig(Protocol):
@@ -51,7 +57,7 @@ class ConfigManager:
         return config
     
     def get_group_config(self, filename: str) -> Dict[str, Any]:
-        """파일명에 따른 그룹 설정을 반환"""
+        """파일명에 따 그룹 설정을 반환"""
         base_config = self.config.copy()
         
         if 'group_settings' in self.config:
@@ -117,6 +123,19 @@ class FileManager:
         original_path = self.upload_folder / original_name
         uploading_path.rename(original_path)
         print(f"파일 상태 복원됨: {original_path}")
+    
+    def get_pending_videos(self) -> List[VideoFile]:
+        """업로드할 파일 목록을 정렬하여 반환"""
+        files = sorted([
+            f for f in self.upload_folder.iterdir()
+            if f.name.startswith(self.config['prefix']) and f.name.endswith(".mp4")
+        ])
+        return [
+            VideoFile(
+                path=f,
+                original_name=f.name[len(self.config['prefix']):]
+            ) for f in files
+        ]
 
 class YouTubeUploader:
     """YouTube 업로드 관련 기능을 담당하는 클래스"""
@@ -169,6 +188,40 @@ class YouTubeUploader:
             part="snippet",
             body=body
         ).execute()
+    
+    def _prepare_request(self, video_file: Path, config: Dict[str, Any]) -> Dict[str, Any]:
+        """업로드 요청 본문을 준비"""
+        # 접두어(u_)를 제거한 실제 파일명 추출
+        original_name = video_file.name[len(config['status_prefix']['uploading']):]
+        video_title = os.path.splitext(original_name)[0]
+        
+        return {
+            "snippet": {
+                "title": video_title,  # 접두어가 제거된 제목 사용
+                "description": config.get('default_description', ''),
+                "tags": config.get('default_tags', []),
+                "categoryId": str(config.get('category_id', '22'))
+            },
+            "status": {
+                "privacyStatus": config.get('privacy_status', 'private'),
+                "selfDeclaredMadeForKids": False
+            }
+        }
+    
+    def _execute_upload(self, request: Any) -> str:
+        """업로드 실행 및 진행률 표시"""
+        print("비디오 업로드 시작...")
+        response = None
+        while response is None:
+            try:
+                status, response = request.next_chunk()
+                if status:
+                    print(f"Upload {int(status.progress() * 100)}%")
+            except Exception as e:
+                print(f"청크 업로드 중 오류 발생: {str(e)}")
+                raise
+        print("비디오 업로드 완료")
+        return response['id']
 
 class VideoProcessor:
     """비디오 처리 로직을 담당하는 클래스"""
@@ -219,6 +272,37 @@ class VideoProcessor:
                 print(f"비디오가 플레이리스트의 {position_str}에 추가되었습니다")
             except Exception as playlist_error:
                 print(f"플레이리스트 처리 중 오류 발생: {str(playlist_error)}")
+    
+    def get_pending_videos(self) -> List[VideoFile]:
+        """업로드할 파일 목록을 반환"""
+        return self.file_manager.get_pending_videos()
+    
+    def _write_log(self, video: VideoFile, video_id: str, config: Dict[str, Any]) -> None:
+        """업로드 로그를 작성"""
+        try:
+            log_file_path = config.get('log_file_path')
+            if not log_file_path:
+                return
+            
+            log_template = config.get('log_template', '- [{file_name_without_ext}]({url})')
+            video_url = f"https://youtu.be/{video_id}"
+            
+            log_entry = log_template.format(
+                file_name_without_ext=video.name_without_ext,
+                url=video_url,
+                video_id=video_id
+            )
+            
+            log_path = Path(log_file_path)
+            self.file_manager.ensure_directory(log_path.parent)
+            
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(f"{log_entry}\n")
+                
+            print(f"로그가 작성됨: {log_file_path}")
+            
+        except Exception as log_error:
+            print(f"로그 작성 중 오류 발생: {str(log_error)}")
 
 def main() -> None:
     """메인 처리 루프를 실행"""

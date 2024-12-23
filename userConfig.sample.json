@@ -19,7 +19,7 @@
       "regex": ", p 13915, ",
       "after_upload_dir": "C:/Users/jhs512/Documents/oCam/after_upload_{code}",
       "privacy_status": "public",
-      "log_template": "## ?강\n- [{file_name_without_ext}]({url})",
+      "log_template": "- [{file_name_without_ext}]({url})",
       "log_file_path": "C:/Users/jhs512/js_projects/slog_doc/log/youtube_upload_{code}.log",
       "playlist": {
         "code": "PLE0hRBClSk5I6oSjDBW3HJUAAT-4P6Qo8",
@@ -33,7 +33,7 @@
       "regex": ", p 153, ",
       "after_upload_dir": "C:/Users/jhs512/Documents/oCam/after_upload_{code}",
       "privacy_status": "unlisted",
-      "log_template": "## ?강\n- [{file_name_without_ext}]({url})",
+      "log_template": "- [{file_name_without_ext}]({url})",
       "log_file_path": "C:/Users/jhs512/js_projects/slog_doc/log/youtube_upload_{code}.log",
       "playlist": {
         "code": "PLE0hRBClSk5Jo77OUdxObi_wkpPeK-w1U",
