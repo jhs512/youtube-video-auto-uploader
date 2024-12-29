@@ -1,4 +1,5 @@
 env
+token.pickle
 client.json
 *.mp4
 userConfig.json

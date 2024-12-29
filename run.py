@@ -8,6 +8,8 @@ import googleapiclient.discovery
 import googleapiclient.errors
 import googleapiclient.http
 import json
+import pickle
+from google.auth.transport.requests import Request
 
 # YouTube API 권한 범위 정의
 SCOPES = [
@@ -42,7 +44,7 @@ class VideoFile:
         return os.path.splitext(self.original_name)[0]
 
 class ConfigManager:
-    """설정 관리를 담당하는 클래스"""
+    """설정 관��를 담당하는 클래스"""
     def __init__(self, config_path: str = 'config.json', user_config_path: str = 'userConfig.json'):
         self.config = self._load_config(config_path, user_config_path)
         
@@ -139,17 +141,38 @@ class FileManager:
 
 class YouTubeUploader:
     """YouTube 업로드 관련 기능을 담당하는 클래스"""
-    def __init__(self, client_secrets_file: str = "client.json", port: int = 8070):
+    def __init__(self, client_secrets_file: str = "client.json", token_file: str = "token.pickle", port: int = 8070):
         self.client_secrets_file = client_secrets_file
+        self.token_file = token_file
         self.port = port
         self.youtube = self._authenticate()
     
     def _authenticate(self) -> Any:
         """YouTube API 인증"""
-        os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
-        flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(
-            self.client_secrets_file, SCOPES)
-        credentials = flow.run_local_server(port=self.port)
+        credentials = None
+        
+        # 저장된 토큰이 있는지 확인
+        if os.path.exists(self.token_file):
+            print("저장된 인증 정보를 불러오는 중...")
+            with open(self.token_file, 'rb') as token:
+                credentials = pickle.load(token)
+        
+        # 토큰이 없거나 유효하지 않은 경우
+        if not credentials or not credentials.valid:
+            if credentials and credentials.expired and credentials.refresh_token:
+                print("토큰 갱신 중...")
+                credentials.refresh(Request())
+            else:
+                print("새로운 인증 진행 중...")
+                os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+                flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(
+                    self.client_secrets_file, SCOPES)
+                credentials = flow.run_local_server(port=self.port)
+            
+            # 토큰 저장
+            with open(self.token_file, 'wb') as token:
+                pickle.dump(credentials, token)
+        
         return googleapiclient.discovery.build("youtube", "v3", credentials=credentials)
     
     def upload_video(self, video_file: Path, config: Dict[str, Any]) -> str:
@@ -286,7 +309,7 @@ class VideoProcessor:
             print(f"성공적으로 처리됨: {video.original_name}")
             
         except Exception as e:
-            print(f"비디오 처리 중 오��� 발생: {str(e)}")
+            print(f"비디오 처리 중 오류 발생: {str(e)}")
             if uploading_path:
                 try:
                     self.file_manager.restore_original(uploading_path, video)
