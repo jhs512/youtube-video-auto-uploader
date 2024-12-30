@@ -184,13 +184,31 @@ class YouTubeUploader:
             resumable=True
         )
         
+        # 플레이리스트 설정이 있는지 확인
+        playlist_config = config.get('playlist', {})
+        if playlist_config.get('enable') and playlist_config.get('code'):
+            request_body['snippet']['playlistId'] = playlist_config['code']
+        
         request = self.youtube.videos().insert(
             part="snippet,status",
             body=request_body,
             media_body=media
         )
 
-        return self._execute_upload(request)
+        video_id = self._execute_upload(request)
+        
+        # 플레이리스트에 추가 (업로드와 동시에 추가되지 않을 경우를 대비)
+        if playlist_config.get('enable') and playlist_config.get('code'):
+            try:
+                self.add_to_playlist(
+                    playlist_config['code'],
+                    video_id,
+                    add_first=playlist_config.get('addFirst', False)
+                )
+            except Exception as e:
+                print(f"플레이리스트 추가 중 오류 발생: {str(e)}")
+        
+        return video_id
     
     def add_to_playlist(self, playlist_id: str, video_id: str, add_first: bool = False) -> None:
         """플레이리스트에 비디오 추가"""
@@ -216,12 +234,20 @@ class YouTubeUploader:
         """업로드 요청 본문을 준비"""
         # 접두어(u_)를 제거한 실제 파일명 추출
         original_name = video_file.name[len(config['status_prefix']['uploading']):]
-        video_title = os.path.splitext(original_name)[0]
+        full_title = os.path.splitext(original_name)[0]
+        
+        # 제목이 100자를 초과하는 경우 자르기
+        video_title = full_title[:100] if len(full_title) > 100 else full_title
+        
+        # 설명에 전체 제목 포함
+        description = f"전체 제목: {full_title}\n\n"
+        if config.get('default_description'):
+            description += config['default_description']
         
         return {
             "snippet": {
-                "title": video_title,  # 접두어가 제거된 제목 사용
-                "description": config.get('default_description', ''),
+                "title": video_title,
+                "description": description,
                 "tags": config.get('default_tags', []),
                 "categoryId": str(config.get('category_id', '22'))
             },
