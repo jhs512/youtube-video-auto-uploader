@@ -44,7 +44,7 @@ class VideoFile:
         return os.path.splitext(self.original_name)[0]
 
 class ConfigManager:
-    """설정 관��를 담당하는 클래스"""
+    """설정 관련을 담당하는 클래스"""
     def __init__(self, config_path: str = 'config.json', user_config_path: str = 'userConfig.json'):
         self.config = self._load_config(config_path, user_config_path)
         
@@ -251,7 +251,7 @@ class YouTubeUploader:
         try:
             # 현재 재생목록 정보 조회
             current_playlist = self.youtube.playlists().list(
-                part="snippet,status",
+                part="snippet,status,contentDetails",
                 id=playlist_id
             ).execute()
             
@@ -281,8 +281,30 @@ class YouTubeUploader:
                     }
                 ).execute()
                 print(f"재생목록 메타데이터 업데이트됨: {title} (공개 상태: {privacy_status})")
+            
+            # 재생목록 정렬 방식을 수동으로 설정
+            self._set_playlist_order_type(playlist_id)
+            
         except Exception as e:
             print(f"재생목록 메타데이터 업데이트 중 오류 발생: {str(e)}")
+    
+    def _set_playlist_order_type(self, playlist_id: str) -> None:
+        """재생목록의 정렬 방식을 수동으로 설정"""
+        try:
+            self.youtube.playlists().update(
+                part="id,localizations",
+                body={
+                    "id": playlist_id,
+                    "localizations": {
+                        "": {  # 빈 문자열 키는 기본 설정을 의미
+                            "orderType": "manual"
+                        }
+                    }
+                }
+            ).execute()
+            print("재생목록 정렬 방식이 수동으로 설정되었습니다.")
+        except Exception as e:
+            print(f"재생목록 정렬 방식 설정 중 오류 발생: {str(e)}")
 
 class VideoProcessor:
     """비디오 처리 로직을 담당하는 클래스"""
