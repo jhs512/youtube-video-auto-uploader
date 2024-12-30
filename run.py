@@ -130,7 +130,8 @@ class FileManager:
         """업로드할 파일 목록을 정렬하여 반환"""
         files = sorted([
             f for f in self.upload_folder.iterdir()
-            if f.name.startswith(self.config['prefix']) and f.name.endswith(".mp4")
+            if f.name.startswith(self.config['prefix']) and 
+            (f.name.endswith(".mp4") or f.name.endswith(".md"))
         ])
         return [
             VideoFile(
@@ -331,6 +332,54 @@ class YouTubeUploader:
             print("재생목록 정렬 방식이 수동으로 설정되었습니다.")
         except Exception as e:
             print(f"재생목록 정렬 방식 설정 중 오류 발생: {str(e)}")
+    
+    def get_playlist_items(self, playlist_id: str) -> List[Dict[str, Any]]:
+        """재생목록의 모든 영상 정보를 가져옴"""
+        playlist_items = []
+        next_page_token = None
+        
+        while True:
+            request = self.youtube.playlistItems().list(
+                part="snippet",
+                playlistId=playlist_id,
+                maxResults=50,
+                pageToken=next_page_token
+            )
+            response = request.execute()
+            
+            for item in response['items']:
+                playlist_items.append({
+                    'id': item['id'],
+                    'videoId': item['snippet']['resourceId']['videoId'],
+                    'title': item['snippet']['title'],
+                    'description': item['snippet'].get('description', '')
+                })
+            
+            next_page_token = response.get('nextPageToken')
+            if not next_page_token:
+                break
+        
+        return playlist_items
+    
+    def update_video(self, video_id: str, title: str, description: str) -> None:
+        """영상의 제목과 설명을 업데이트"""
+        # 제목이 100자를 초과하는 경우 자르기
+        title = title[:100] if len(title) > 100 else title
+        
+        # 설명에는 전체 제목 포함
+        full_description = f"전체 제목: {title}\n\n{description}"
+        
+        self.youtube.videos().update(
+            part="snippet",
+            body={
+                "id": video_id,
+                "snippet": {
+                    "title": title,
+                    "description": full_description,
+                    "categoryId": "22"
+                }
+            }
+        ).execute()
 
 class VideoProcessor:
     """비디오 처리 로직을 담당하는 클래스"""
@@ -347,6 +396,12 @@ class VideoProcessor:
             video_config = self.config_manager.get_group_config(video.original_name)
             uploading_path = self.file_manager.prepare_upload(video)
             
+            # 마크다운 파일인 경우
+            if video.path.suffix.lower() == '.md':
+                self._handle_markdown(uploading_path, video, video_config)
+                return
+            
+            # 비디오 파일 처리 (기존 코드)
             video_id = self.uploader.upload_video(uploading_path, video_config)
             print(f"비디오 ID: {video_id}")
             
@@ -424,6 +479,104 @@ class VideoProcessor:
             
         except Exception as log_error:
             print(f"로그 작성 중 오류 발생: {str(log_error)}")
+    
+    def _handle_markdown(self, uploading_path: Path, video: VideoFile, config: Dict[str, Any]) -> None:
+        """마크다운 파일 처리"""
+        try:
+            # 파일명에서 그룹 코드 추출 (예: p_13900.md -> p_13900)
+            group_code = os.path.splitext(video.original_name)[0]
+            
+            # 해당 그룹의 설정이 있는지 확인
+            if group_code in self.config_manager.config.get('group_settings', {}):
+                group_config = self.config_manager.config['group_settings'][group_code]
+                target_dir = Path(group_config['after_upload_dir'].format(code=group_code))
+                log_file_path = group_config['log_file_path'].format(code=group_code)
+                
+                # 재생목록 설정이 있는 경우
+                if 'playlist' in group_config and group_config['playlist'].get('enable'):
+                    self._update_playlist_videos(uploading_path, group_config['playlist']['code'], log_file_path)
+            else:
+                # 기본 설정 사용
+                target_dir = Path(config.get('after_upload_dir', self.file_manager.upload_folder))
+                log_file_path = config.get('log_file_path')
+            
+            # 파일 이동
+            self.file_manager.ensure_directory(target_dir)
+            done_path = target_dir / f"{config['status_prefix']['done']}{video.original_name}"
+            uploading_path.rename(done_path)
+            print(f"파일 이동됨: {done_path}")
+            
+        except Exception as e:
+            print(f"마크다운 파일 처리 중 오류 발생: {str(e)}")
+            raise
+    
+    def _update_playlist_videos(self, md_file: Path, playlist_id: str, log_file_path: str) -> None:
+        """마크다운 파일의 내용을 기반으로 재생목록 영상들을 업데이트"""
+        # 마크다운 파일 읽기
+        with open(md_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # 재생목록의 모든 영상 가져오기
+        playlist_items = self.uploader.get_playlist_items(playlist_id)
+        
+        # 변경 사항 추적
+        changes = []
+        
+        # 마크다운에서 영상 정보 추출 및 업데이트
+        import re
+        
+        # 두 가지 패턴 모두 매칭
+        patterns = [
+            r'\[([^\]]+)\]\(https://youtu\.be/([a-zA-Z0-9_-]+)\)',  # 직접 유튜브 링크
+            r'\[([^\]]+)\]\(https://goto\.slog\.gg/youtube/[^/]+/(\d+)\)'  # goto.slog.gg 링크
+        ]
+        
+        for pattern in patterns:
+            matches = re.finditer(pattern, content)
+            for match in matches:
+                title = match.group(1)
+                
+                # goto.slog.gg 링크의 경우 position으로 videoId 찾기
+                if 'goto.slog.gg' in match.group(0):
+                    position = int(match.group(2)) - 1
+                    if position < len(playlist_items):
+                        video_id = playlist_items[position]['videoId']
+                else:
+                    video_id = match.group(2)
+                
+                # 해당 영상 찾기
+                video_item = next((item for item in playlist_items if item['videoId'] == video_id), None)
+                
+                if video_item and video_item['title'] != title:
+                    # 변경 사항 기록
+                    changes.append({
+                        'video_id': video_id,
+                        'old_title': video_item['title'],
+                        'new_title': title
+                    })
+                    
+                    # 영상 업데이트
+                    self.uploader.update_video(video_id, title, f"원본 제목: {video_item['title']}")
+        
+        # 변경 사항 로깅
+        if changes:
+            from datetime import datetime
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            log_entries = [
+                f"{timestamp} - 총 {len(changes)}개 영상 제목 변경됨:"
+            ]
+            
+            for change in changes:
+                log_entries.append(f"- {change['video_id']}: {change['old_title']} -> {change['new_title']}")
+            
+            log_path = Path(log_file_path)
+            self.file_manager.ensure_directory(log_path.parent)
+            
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write('\n'.join(log_entries) + '\n\n')
+            
+            print(f"변경사항이 로그에 기록됨: {log_file_path}")
 
 def main() -> None:
     """메인 처리 루프를 실행"""
