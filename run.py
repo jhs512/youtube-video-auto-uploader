@@ -134,11 +134,25 @@ class FileManager:
     
     def get_pending_videos(self) -> List[VideoFile]:
         """업로드할 파일 목록을 정렬하여 반환"""
-        files = sorted([
-            f for f in self.upload_folder.iterdir()
-            if f.name.startswith(self.config['prefix']) and 
-            (f.name.endswith(".mp4") or f.name.endswith(".md"))
-        ])
+        current_time = time.time()
+        files = []
+        
+        for f in sorted(self.upload_folder.iterdir()):
+            # r_ 로 시작하는 파일만 처리
+            if not f.name.startswith(self.config['prefix']):
+                continue
+                
+            # mp4나 md 파일만 처리
+            if not (f.name.endswith(".mp4") or f.name.endswith(".md")):
+                continue
+            
+            # 파일 마지막 수정 시간 확인
+            modified_time = f.stat().st_mtime
+            if current_time - modified_time < 30:  # 30초 이내에 수정된 파일은 제외
+                continue
+                
+            files.append(f)
+        
         return [
             VideoFile(
                 path=f,
