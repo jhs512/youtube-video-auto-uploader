@@ -21,7 +21,7 @@ SCOPES = [
 class PlaylistConfig(Protocol):
     code: str
     enable: bool
-    addFirst: bool
+    add_first: bool
     title: str
     description: str
 
@@ -210,7 +210,7 @@ class YouTubeUploader:
                 self.add_to_playlist(
                     playlist_config['code'],
                     video_id,
-                    add_first=playlist_config.get('addFirst', False)
+                    add_first=playlist_config.get('add_first', False)
                 )
             except Exception as e:
                 print(f"플레이리스트 추가 중 오류 발생: {str(e)}")
@@ -434,7 +434,7 @@ class VideoProcessor:
                 )
                 
                 # 비디오 추가
-                add_first = playlist_config.get('addFirst', False)
+                add_first = playlist_config.get('add_first', False)
                 self.uploader.add_to_playlist(
                     playlist_id,
                     video_id,
@@ -539,10 +539,14 @@ class VideoProcessor:
                 r'\[([^\]]+)\]\(https://goto\.slog\.gg/youtube/[^/]+/(\d+)\)'  # goto.slog.gg 링크
             ]
             
+            def normalize_title(title: str) -> str:
+                """제목의 이스케이프 문자를 정규화"""
+                return title.replace('\\n', '\n')
+            
             for pattern in patterns:
                 matches = re.finditer(pattern, content)
                 for match in matches:
-                    title = match.group(1)
+                    md_title = normalize_title(match.group(1))
                     
                     # goto.slog.gg 링크의 경우 position으로 videoId 찾기
                     if 'goto.slog.gg' in match.group(0):
@@ -559,25 +563,18 @@ class VideoProcessor:
                     # 해당 영상 찾기
                     video_item = next((item for item in playlist_items if item['videoId'] == video_id), None)
                     
-                    if video_item and video_item['title'] != title:
-                        # 변경 사항 기록
-                        changes.append({
-                            'video_id': video_id,
-                            'old_title': video_item['title'],
-                            'new_title': title
-                        })
-                        
-                        # 영상 업데이트 (설명에 제목 변경 로그 추가)
-                        description = f"제목: {title}\n\n"
-                        if video_item.get('description'):
-                            # 기존 설명에서 "제목: " 로 시작하는 첫 줄을 제외한 나머지를 가져옴
-                            old_desc_lines = video_item['description'].split('\n')
-                            if old_desc_lines and old_desc_lines[0].startswith('제목:'):
-                                description += '\n'.join(old_desc_lines[2:])
-                            else:
-                                description += video_item['description']
-                        
-                        self.uploader.update_video(video_id, title, description)
+                    if video_item:
+                        youtube_title = normalize_title(video_item['title'])
+                        if youtube_title != md_title:
+                            # 변경 사항 기록
+                            changes.append({
+                                'video_id': video_id,
+                                'old_title': video_item['title'],
+                                'new_title': match.group(1)  # 원본 마크다운 제목 사용
+                            })
+                            
+                            # 영상 업데이트
+                            self.uploader.update_video(video_id, match.group(1), f"제목: {match.group(1)}\n\n{video_item.get('description', '')}")
             
             # 변경 사항 로깅
             if changes:
