@@ -261,7 +261,7 @@ class YouTubeUploader:
         video_title = full_title[:100] if len(full_title) > 100 else full_title
         
         # 설명에 전체 제목 포함
-        description = f"전체 제목: {full_title}\n\n"
+        description = f"제목: {full_title}\n\n"
         if config.get('default_description'):
             description += config['default_description']
         
@@ -588,7 +588,7 @@ class VideoProcessor:
                             })
                             
                             # 영상 업데이트
-                            self.uploader.update_video(video_id, match.group(1), f"제목: {match.group(1)}\n\n{video_item.get('description', '')}")
+                            self.uploader.update_video(video_id, match.group(1), f"제목: {match.group(1)}\n\n로그\n{video_item.get('description', '')}")
             
             # 변경 사항 로깅
             if changes:
