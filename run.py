@@ -543,6 +543,7 @@ class VideoProcessor:
             
             # 변경 사항 추적
             changes = []
+            youtube_links = []  # v2 버전용 유튜브 링크 저장
             
             # 마크다운에서 영상 정보 추출 및 업데이트
             import re
@@ -563,18 +564,26 @@ class VideoProcessor:
                     
                     # goto.slog.gg 링크의 경우 position으로 videoId 찾기
                     if 'goto.slog.gg' in match.group(0):
-                        # 재생목록 설정에서 add_first 값 가져오기
                         position = int(match.group(2))
-
+                        
                         if position < 0:
                             position = len(playlist_items) + position
                         else:
                             position = position - 1
-
+                        
                         if position < len(playlist_items):
                             video_id = playlist_items[position]['videoId']
+                            # v2 버전용 유튜브 링크 저장
+                            youtube_links.append({
+                                'original': match.group(0),
+                                'youtube': f'[{md_title}](https://youtu.be/{video_id})'
+                            })
                     else:
                         video_id = match.group(2)
+                        youtube_links.append({
+                            'original': match.group(0),
+                            'youtube': match.group(0)  # 이미 유튜브 링크면 그대로 유지
+                        })
                     
                     # 해당 영상이 재생목록에 있는지 확인
                     if video_id not in playlist_video_ids:
@@ -596,32 +605,54 @@ class VideoProcessor:
                             # 영상 업데이트
                             self.uploader.update_video(video_id, match.group(1), f"제목: {match.group(1)}\n\n로그\n{video_item.get('description', '')}")
             
-            # 변경 사항 로깅
+            # 변경 사항 로깅 (원본 버전)
             if changes:
-                from datetime import datetime
-                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                group_code = os.path.splitext(md_file.name)[len(self.config_manager.config['prefix']):-len('.md')]
+                self._write_log_entries(changes, log_file_path)
                 
-                log_entries = [
-                    f"{timestamp} - 총 {len(changes)}개 영상 제목 변경됨:"
-                ]
+                # v2 버전 로그 파일 생성
+                v2_log_path = self._get_v2_log_path(log_file_path)
                 
-                for change in changes:
-                    log_entries.append(
-                        f"({change['video_id']}): {change['old_title']} --(변경)--> {change['new_title']}"
-                    )
+                # v2 버전 콘텐츠 생성
+                v2_content = content
+                for link in youtube_links:
+                    v2_content = v2_content.replace(link['original'], link['youtube'])
                 
-                log_path = Path(log_file_path)
-                self.file_manager.ensure_directory(log_path.parent)
+                # v2 버전 저장
+                with open(v2_log_path, 'w', encoding='utf-8') as f:
+                    f.write(v2_content)
                 
-                with open(log_path, 'a', encoding='utf-8') as f:
-                    f.write('\n'.join(log_entries) + '\n\n')
-                
-                print(f"변경사항이 로그에 기록됨: {log_file_path}")
-                
+                print(f"v2 버전 로그가 생성됨: {v2_log_path}")
+            
         except Exception as e:
             print(f"재생목록 영상 업데이트 중 오류 발생: {str(e)}")
             raise
+
+    def _write_log_entries(self, changes: List[Dict[str, str]], log_file_path: str) -> None:
+        """로그 항목들을 파일에 작성"""
+        from datetime import datetime
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        log_entries = [
+            f"{timestamp} - 총 {len(changes)}개 영상 제목 변경됨:"
+        ]
+        
+        for change in changes:
+            log_entries.append(
+                f"({change['video_id']}): {change['old_title']} --(변경)--> {change['new_title']}"
+            )
+        
+        log_path = Path(log_file_path)
+        self.file_manager.ensure_directory(log_path.parent)
+        
+        with open(log_path, 'a', encoding='utf-8') as f:
+            f.write('\n'.join(log_entries) + '\n\n')
+        
+        print(f"변경사항이 로그에 기록됨: {log_file_path}")
+
+    def _get_v2_log_path(self, original_path: str) -> str:
+        """v2 버전 로그 파일 경로 생성"""
+        path = Path(original_path)
+        return str(path.parent / f"{path.stem}_v2{path.suffix}")
 
 def main() -> None:
     """메인 처리 루프를 실행"""
