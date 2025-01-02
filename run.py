@@ -550,11 +550,11 @@ class VideoProcessor:
             # 두 가지 패턴 모두 매칭
             patterns = [
                 r'\[([^\]]+)\]\(https://youtu\.be/([a-zA-Z0-9_-]+)\)',  # 직접 유튜브 링크
-                r'\[([^\]]+)\]\(https://goto\.slog\.gg/youtube/[^/]+/(\d+)\)'  # goto.slog.gg 링크
+                r'\[([^\]]+)\]\(https://goto\.slog\.gg/youtube/[^/]+/(-?\d+)\)'  # goto.slog.gg 링크
             ]
             
             def normalize_title(title: str) -> str:
-                return title # 일단은 정규화하지 않음
+                return title
             
             for pattern in patterns:
                 matches = re.finditer(pattern, content)
@@ -564,9 +564,11 @@ class VideoProcessor:
                     # goto.slog.gg 링크의 경우 position으로 videoId 찾기
                     if 'goto.slog.gg' in match.group(0):
                         # 재생목록 설정에서 add_first 값 가져오기
-                        playlist_config = self.config_manager.config['group_settings'][group_code].get('playlist', {})
-                        add_first = playlist_config.get('add_first', False)
-                        position = len(playlist_items) - int(match.group(2)) if add_first else int(match.group(2)) - 1
+                        position = int(match.group(2)) - 1
+
+                        if position < 0:
+                            position = len(playlist_items) + position
+
                         if position < len(playlist_items):
                             video_id = playlist_items[position]['videoId']
                     else:
