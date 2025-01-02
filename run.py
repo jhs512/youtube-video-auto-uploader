@@ -651,9 +651,14 @@ class VideoProcessor:
 
     def _get_v2_log_path(self, original_path: str) -> str:
         """v2 버전 로그 파일 경로 생성"""
+        from datetime import datetime
+        
         path = Path(original_path)
+        timestamp = datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
+        new_filename = f"{path.stem}__clean_url__{timestamp}{path.suffix}"
+        
         # 경로를 POSIX 스타일(/)로 통일
-        return str(path.parent / f"{path.stem}_v2{path.suffix}").replace('\\', '/')
+        return str(path.parent / new_filename).replace('\\', '/')
 
 def main() -> None:
     """메인 처리 루프를 실행"""
