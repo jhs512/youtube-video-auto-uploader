@@ -554,8 +554,7 @@ class VideoProcessor:
             ]
             
             def normalize_title(title: str) -> str:
-                """제목의 이스케이프 문자를 정규화"""
-                return title.replace('\\n', '\n')
+                return title # 일단은 정규화하지 않음
             
             for pattern in patterns:
                 matches = re.finditer(pattern, content)
@@ -564,7 +563,10 @@ class VideoProcessor:
                     
                     # goto.slog.gg 링크의 경우 position으로 videoId 찾기
                     if 'goto.slog.gg' in match.group(0):
-                        position = int(match.group(2)) - 1
+                        # 재생목록 설정에서 add_first 값 가져오기
+                        playlist_config = self.config_manager.config['group_settings'][group_code].get('playlist', {})
+                        add_first = playlist_config.get('add_first', False)
+                        position = len(playlist_items) - int(match.group(2)) if add_first else int(match.group(2)) - 1
                         if position < len(playlist_items):
                             video_id = playlist_items[position]['videoId']
                     else:
