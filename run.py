@@ -564,10 +564,12 @@ class VideoProcessor:
                     # goto.slog.gg 링크의 경우 position으로 videoId 찾기
                     if 'goto.slog.gg' in match.group(0):
                         # 재생목록 설정에서 add_first 값 가져오기
-                        position = int(match.group(2)) - 1
+                        position = int(match.group(2))
 
                         if position < 0:
                             position = len(playlist_items) + position
+                        else:
+                            position = position - 1
 
                         if position < len(playlist_items):
                             video_id = playlist_items[position]['videoId']
