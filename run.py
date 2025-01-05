@@ -399,6 +399,20 @@ class YouTubeUploader:
             }
         ).execute()
 
+    def check_token_valid(self) -> bool:
+        """토큰이 유효한지 확인"""
+        try:
+            # 간단한 API 요청으로 토큰 유효성 확인
+            self.youtube.channels().list(
+                part="snippet",
+                mine=True
+            ).execute()
+            print("토큰이 유효합니다.")
+            return True
+        except Exception as e:
+            print(f"토큰 유효성 검사 실패: {str(e)}")
+            return False
+
 class VideoProcessor:
     """비디오 처리 로직을 담당하는 클래스"""
     def __init__(self, config_manager: ConfigManager):
