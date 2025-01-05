@@ -125,13 +125,6 @@ class FileManager:
         )
         return f"{config['status_prefix']['done']}{base_name}"
     
-    def restore_original(self, uploading_path: Path, video: VideoFile) -> None:
-        """실패 시 원래 상태로 복원"""
-        original_name = f"{self.config['prefix']}{video.original_name}"
-        original_path = self.upload_folder / original_name
-        uploading_path.rename(original_path)
-        print(f"파일 상태 복원됨: {original_path}")
-    
     def get_pending_videos(self) -> List[VideoFile]:
         """업로드할 파일 목록을 정렬하여 반환"""
         current_time = time.time()
@@ -282,16 +275,24 @@ class YouTubeUploader:
         """업로드 실행 및 진행률 표시"""
         print("비디오 업로드 시작...")
         response = None
-        while response is None:
-            try:
-                status, response = request.next_chunk()
-                if status:
-                    print(f"Upload {int(status.progress() * 100)}%")
-            except Exception as e:
-                print(f"청크 업로드 중 오류 발생: {str(e)}")
-                raise
-        print("비디오 업로드 완료")
-        return response['id']
+        try:
+            while response is None:
+                try:
+                    status, response = request.next_chunk()
+                    if status:
+                        print(f"Upload {int(status.progress() * 100)}%")
+                except Exception as e:
+                    print(f"청크 업로드 중 오류 발생: {str(e)}")
+                    # 업로드 중단 및 연결 종료
+                    request.resumable_upload_session.close()
+                    raise
+            print("비디오 업로드 완료")
+            return response['id']
+        except Exception as e:
+            print("업로드 실패, 연결을 종료합니다.")
+            if hasattr(request, 'resumable_upload_session'):
+                request.resumable_upload_session.close()
+            raise
     
     def update_playlist_metadata(self, playlist_id: str, title: str, description: str, privacy_status: str = 'public') -> None:
         """재생목록의 메타데이터를 업데이트"""
@@ -408,27 +409,49 @@ class VideoProcessor:
     
     def process_video(self, video: VideoFile) -> None:
         """비디오 파일 처리"""
+        uploading_path = None
         try:
+            # API 토큰 유효성 먼저 확인
+            if not self.uploader.check_token_valid():
+                raise Exception("YouTube API 토큰이 유효하지 않습니다. 인증이 필요합니다.")
+            
             config = self.config_manager.get_group_config(video.original_name)
             
             # 마크다운 파일인 경우
             if video.original_name.endswith('.md'):
-                # uploading 상태로 변경
                 uploading_path = self.file_manager.prepare_upload(video)
+                time.sleep(5)
                 self._handle_markdown(uploading_path, video, config)
                 return
             
-            # 영상 파일 처리 (기존 코드)
+            # 영상 파일 처리
             uploading_path = self.file_manager.prepare_upload(video)
+            time.sleep(5)
+            
             video_id = self.uploader.upload_video(uploading_path, config)
+            time.sleep(5)
+            
             self._write_log(video, video_id, config)
+            time.sleep(5)
+            
             self.file_manager.finish_upload(uploading_path, video, video_id, config)
+            time.sleep(5)
             
         except Exception as e:
             print(f"비디오 처리 중 오류 발생: {str(e)}")
-            # 실패 시 원래 상태로 복구
-            if 'uploading_path' in locals():
-                uploading_path.rename(video.path)
+            if uploading_path:
+                # 파일 복구 시도 (최대 5번)
+                for attempt in range(5):
+                    try:
+                        time.sleep(5 * (attempt + 1))  # 재시도마다 대기 시간 증가
+                        uploading_path.rename(video.path)
+                        print("파일 상태가 성공적으로 복구되었습니다.")
+                        break
+                    except Exception as rename_error:
+                        if attempt == 4:  # 마지막 시도였을 경우
+                            print(f"파일 복구 실패 (5회 시도): {str(rename_error)}")
+                        else:
+                            print(f"파일 복구 시도 {attempt + 1} 실패, 재시도 중...")
             raise
     
     def _handle_playlist(self, config: Dict[str, Any], video_id: str) -> None:
