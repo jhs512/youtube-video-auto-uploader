@@ -95,12 +95,6 @@ class FileManager:
         """디렉토리가 없으면 생성"""
         path.mkdir(parents=True, exist_ok=True)
     
-    def safe_rename(self, src: Path, dst: Path) -> None:
-        """안전하게 파일 이동 (이미 존재하는 경우 삭제)"""
-        if dst.exists():
-            dst.unlink()  # 기존 파일 삭제
-        src.rename(dst)
-    
     def prepare_upload(self, video: VideoFile) -> Path:
         """업로드 준비 상태로 파일을 변경"""
         uploading_name = f"{self.config['status_prefix']['uploading']}{video.original_name}"
@@ -467,35 +461,6 @@ class VideoProcessor:
                         else:
                             print(f"파일 복구 시도 {attempt + 1} 실패, 재시도 중...")
             raise
-    
-    def _handle_playlist(self, config: Dict[str, Any], video_id: str) -> None:
-        """플레이리스트 처리"""
-        playlist_config = config.get('playlist', {})
-        if playlist_config.get('enable') and playlist_config.get('code'):
-            try:
-                playlist_id = playlist_config['code']
-                print(f"플레이리스트에 추가 중 (코드: {playlist_id})")
-                
-                # 재생목록 메타데이터 업데이트
-                self.uploader.update_playlist_metadata(
-                    playlist_id,
-                    playlist_config.get('title', ''),
-                    playlist_config.get('description', ''),
-                    playlist_config.get('privacy_status', 'public')
-                )
-                
-                # 비디오 추가
-                add_first = playlist_config.get('add_first', False)
-                self.uploader.add_to_playlist(
-                    playlist_id,
-                    video_id,
-                    add_first=add_first
-                )
-                
-                position_str = "맨 앞" if add_first else "맨 뒤"
-                print(f"비디오가 플레이리스트의 {position_str}에 추가되었습니다")
-            except Exception as playlist_error:
-                print(f"플레이리스트 처리 중 오류 발생: {str(playlist_error)}")
     
     def get_pending_videos(self) -> List[VideoFile]:
         """업로드할 파일 목록을 반환"""
