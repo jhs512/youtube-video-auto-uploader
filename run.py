@@ -146,6 +146,12 @@ class FileManager:
                 original_name=f.name[len(self.config['prefix']):]
             ) for f in files
         ]
+    
+    def safe_rename(self, src: Path, dst: Path) -> None:
+        """안전하게 파일 이동 (이미 존재하는 경우 삭제)"""
+        if dst.exists():
+            dst.unlink()  # 기존 파일 삭제
+        src.rename(dst)
 
 class YouTubeUploader:
     """YouTube 업로드 관련 기능을 담당하는 클래스"""
