@@ -1,6 +1,8 @@
 import os
+import re
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Dict, Any, Optional, Protocol, List
 from pathlib import Path
 import google_auth_oauthlib
@@ -212,16 +214,11 @@ class YouTubeUploader:
         """비디오 업로드 실행"""
         request_body = self._prepare_request(video_file, config)
         media = googleapiclient.http.MediaFileUpload(
-            str(video_file), 
-            chunksize=-1, 
+            str(video_file),
+            chunksize=-1,
             resumable=True
         )
-        
-        # 플레이리스트 설정이 있는지 확인
-        playlist_config = config.get('playlist', {})
-        if playlist_config.get('enable') and playlist_config.get('code'):
-            request_body['snippet']['playlistId'] = playlist_config['code']
-        
+
         request = self.youtube.videos().insert(
             part="snippet,status",
             body=request_body,
@@ -229,8 +226,9 @@ class YouTubeUploader:
         )
 
         video_id = self._execute_upload(request)
-        
-        # 플레이리스트에 추가 (업로드와 동시에 추가되지 않을 경우를 대비)
+
+        # 플레이리스트에 추가
+        playlist_config = config.get('playlist', {})
         if playlist_config.get('enable') and playlist_config.get('code'):
             try:
                 self.add_to_playlist(
@@ -240,7 +238,7 @@ class YouTubeUploader:
                 )
             except Exception as e:
                 print(f"플레이리스트 추가 중 오류 발생: {str(e)}")
-        
+
         return video_id
     
     def add_to_playlist(self, playlist_id: str, video_id: str, add_first: bool = False) -> None:
@@ -330,10 +328,10 @@ class YouTubeUploader:
             current_status = current_playlist['items'][0]['status']
             
             # 현재 값과 다른 경우에만 업데이트
-            if (current_snippet.get('title') != title or 
-                current_snippet.get('description') != description or 
+            if (current_snippet.get('title') != title or
+                current_snippet.get('description') != description or
                 current_status.get('privacyStatus') != privacy_status):
-                
+
                 self.youtube.playlists().update(
                     part="snippet,status",
                     body={
@@ -348,9 +346,9 @@ class YouTubeUploader:
                     }
                 ).execute()
                 print(f"재생목록 메타데이터 업데이트됨: {title} (공개 상태: {privacy_status})")
-            
-            # 재생목록 정렬 방식을 수동으로 설정
-            self._set_playlist_order_type(playlist_id)
+
+                # 메타데이터가 변경된 경우에만 정렬 방식 설정
+                self._set_playlist_order_type(playlist_id)
             
         except Exception as e:
             print(f"재생목록 메타데이터 업데이트 중 오류 발생: {str(e)}")
@@ -444,10 +442,6 @@ class VideoProcessor:
         """비디오 파일 처리"""
         uploading_path = None
         try:
-            # API 토큰 유효성 먼저 확인
-            if not self.uploader.check_token_valid():
-                raise Exception("YouTube API 토큰이 유효하지 않습니다. 인증이 필요합니다.")
-            
             config = self.config_manager.get_group_config(video.original_name)
             
             # 마크다운 파일인 경우
@@ -538,8 +532,7 @@ class VideoProcessor:
                 target_dir = Path(config.get('after_upload_dir', self.file_manager.upload_folder))
                 log_file_path = config.get('log_file_path')
             
-            # 파재 시간을 파일명에 추가
-            from datetime import datetime
+            # 현재 시간을 파일명에 추가
             timestamp = datetime.now().strftime('___%Y_%m_%d__%H_%M_%S')
             name_without_ext = os.path.splitext(video.original_name)[0]
             ext = os.path.splitext(video.original_name)[1]
@@ -571,23 +564,17 @@ class VideoProcessor:
             # 변경 사항 추적
             changes = []
             youtube_links = []  # v2 버전용 유튜브 링크 저장
-            
-            # 마크다운에서 영상 정보 추출 및 업데이트
-            import re
-            
+
             # 두 가지 패턴 모두 매칭
             patterns = [
                 r'\[([^\]]+)\]\(https://youtu\.be/([a-zA-Z0-9_-]+)\)',  # 직접 유튜브 링크
                 r'\[([^\]]+)\]\(https://goto\.slog\.gg/youtube/[^/]+/(-?\d+)\)'  # goto.slog.gg 링크
             ]
-            
-            def normalize_title(title: str) -> str:
-                return title
-            
+
             for pattern in patterns:
                 matches = re.finditer(pattern, content)
                 for match in matches:
-                    md_title = normalize_title(match.group(1))
+                    md_title = match.group(1)
                     
                     # goto.slog.gg 링크의 경우 position으로 videoId 찾기
                     if 'goto.slog.gg' in match.group(0):
@@ -620,8 +607,7 @@ class VideoProcessor:
                     video_item = next((item for item in playlist_items if item['videoId'] == video_id), None)
                     
                     if video_item:
-                        youtube_title = normalize_title(video_item['title'])
-                        if youtube_title != md_title:
+                        if video_item['title'] != md_title:
                             # 변경 사항 기록
                             changes.append({
                                 'video_id': video_id,
@@ -656,7 +642,6 @@ class VideoProcessor:
 
     def _write_log_entries(self, changes: List[Dict[str, str]], log_file_path: str) -> None:
         """로그 항목들을 파일에 작성"""
-        from datetime import datetime
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         log_entries = [
@@ -678,8 +663,6 @@ class VideoProcessor:
 
     def _get_v2_log_path(self, original_path: str) -> str:
         """v2 버전 로그 파일 경로 생성"""
-        from datetime import datetime
-        
         path = Path(original_path)
         timestamp = datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
         new_filename = f"{path.stem}__clean_url__{timestamp}{path.suffix}"
