@@ -110,6 +110,9 @@ class FileManager:
         done_path = target_dir / done_name
         uploading_path.rename(done_path)
         print(f"파일 이동됨: {done_path}")
+
+        # 같은 이름의 다른 확장자 파일 삭제 (예: .mkv 파일)
+        self._cleanup_related_files(video.original_name)
     
     def _create_done_filename(self, video: VideoFile, video_id: str, config: Dict[str, Any]) -> str:
         """완료된 파일의 이름 생성"""
@@ -152,6 +155,22 @@ class FileManager:
         if dst.exists():
             dst.unlink()  # 기존 파일 삭제
         src.rename(dst)
+
+    def _cleanup_related_files(self, original_name: str) -> None:
+        """같은 이름의 다른 확장자 파일 삭제 (예: r_26-01-28, p 10, 10 53 19.mkv)"""
+        name_without_ext = os.path.splitext(original_name)[0]
+        prefix = self.config['prefix']
+
+        # upload_folder에서 같은 이름의 파일 찾기
+        for f in self.upload_folder.iterdir():
+            if not f.is_file():
+                continue
+            # r_ 접두사 + 같은 이름(확장자 제외)인 파일 찾기
+            if f.name.startswith(prefix):
+                f_name_without_ext = os.path.splitext(f.name[len(prefix):])[0]
+                if f_name_without_ext == name_without_ext:
+                    f.unlink()
+                    print(f"관련 파일 삭제됨: {f.name}")
 
 class YouTubeUploader:
     """YouTube 업로드 관련 기능을 담당하는 클래스"""
